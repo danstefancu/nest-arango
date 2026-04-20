@@ -418,14 +418,12 @@ export class ArangoRepository<T extends ArangoDocument> {
       };
 
       if (this.eventListeners?.get(EventListenerType.BEFORE_SAVE)) {
-        await Promise.all(
-          documents.map(async (document, index) => {
-            context.info.current = index;
-            await this.eventListeners
-              ?.get(EventListenerType.BEFORE_SAVE)
-              ?.call(document, context);
-          }),
-        );
+        for (let index = 0; index < documents.length; index++) {
+          context!.info.current = index;
+          await this.eventListeners
+            ?.get(EventListenerType.BEFORE_SAVE)
+            ?.call(documents[index], context!);
+        }
       }
     }
 
@@ -448,23 +446,23 @@ export class ArangoRepository<T extends ArangoDocument> {
       });
     }
 
-    return Promise.all(
-      result.map(async (document, index) => {
-        if (!isDocumentOperationFailure(document)) {
-          if (saveAllOptions?.emitEvents) {
-            context.info.current = index;
-            context.new = document.new;
-            await this.eventListeners
-              ?.get(EventListenerType.AFTER_SAVE)
-              ?.call(document, context);
-          }
-
-          return document.new!;
-        } else {
-          return document;
+    const output: (Document<T> | DocumentOperationFailure)[] = [];
+    for (let index = 0; index < result.length; index++) {
+      const document = result[index];
+      if (!isDocumentOperationFailure(document)) {
+        if (saveAllOptions?.emitEvents) {
+          context!.info.current = index;
+          context!.new = document.new;
+          await this.eventListeners
+            ?.get(EventListenerType.AFTER_SAVE)
+            ?.call(document, context!);
         }
-      }),
-    );
+        output.push(document.new!);
+      } else {
+        output.push(document);
+      }
+    }
+    return output;
   }
 
   async update<R = any>(
@@ -587,14 +585,12 @@ export class ArangoRepository<T extends ArangoDocument> {
       };
 
       if (this.eventListeners?.get(EventListenerType.BEFORE_UPDATE)) {
-        await Promise.all(
-          documents.map(async (document, index) => {
-            context.info.current = index;
-            await this.eventListeners
-              ?.get(EventListenerType.BEFORE_UPDATE)
-              ?.call(document, context);
-          }),
-        );
+        for (let index = 0; index < documents.length; index++) {
+          context!.info.current = index;
+          await this.eventListeners
+            ?.get(EventListenerType.BEFORE_UPDATE)
+            ?.call(documents[index], context!);
+        }
       }
     }
 
@@ -620,24 +616,24 @@ export class ArangoRepository<T extends ArangoDocument> {
       });
     }
 
-    return await Promise.all(
-      results.map(async (document, index) => {
-        if (!isDocumentOperationFailure(document)) {
-          if (updateAllOptions?.emitEvents) {
-            context.new = document.new;
-            context.old = document.old;
-            context.info.current = index;
-            await this.eventListeners
-              ?.get(EventListenerType.AFTER_UPDATE)
-              ?.call(document, context);
-          }
-
-          return new ArangoNewOldResult(document.new!, document.old!);
-        } else {
-          return document;
+    const output: (ArangoNewOldResult<Document<T>> | DocumentOperationFailure)[] = [];
+    for (let index = 0; index < results.length; index++) {
+      const document = results[index];
+      if (!isDocumentOperationFailure(document)) {
+        if (updateAllOptions?.emitEvents) {
+          context!.new = document.new;
+          context!.old = document.old;
+          context!.info.current = index;
+          await this.eventListeners
+            ?.get(EventListenerType.AFTER_UPDATE)
+            ?.call(document, context!);
         }
-      }),
-    );
+        output.push(new ArangoNewOldResult(document.new!, document.old!));
+      } else {
+        output.push(document);
+      }
+    }
+    return output;
   }
 
   async replace<R = any>(
@@ -752,14 +748,12 @@ export class ArangoRepository<T extends ArangoDocument> {
       };
 
       if (this.eventListeners?.get(EventListenerType.BEFORE_REPLACE)) {
-        await Promise.all(
-          documents.map(async (document, index) => {
-            context.info.current = index;
-            await this.eventListeners
-              ?.get(EventListenerType.BEFORE_REPLACE)
-              ?.call(document, context);
-          }),
-        );
+        for (let index = 0; index < documents.length; index++) {
+          context!.info.current = index;
+          await this.eventListeners
+            ?.get(EventListenerType.BEFORE_REPLACE)
+            ?.call(documents[index], context!);
+        }
       }
     }
 
@@ -785,25 +779,24 @@ export class ArangoRepository<T extends ArangoDocument> {
       });
     }
 
-    return await Promise.all(
-      results.map(async (document, index) => {
-        if (!isDocumentOperationFailure(document)) {
-          if (replaceAllOptions?.emitEvents) {
-            context.new = document.new;
-            context.old = document.old;
-            context.info.current = index;
-
-            await this.eventListeners
-              ?.get(EventListenerType.AFTER_REPLACE)
-              ?.call(document, context);
-          }
-
-          return new ArangoNewOldResult(document.new!, document.old!);
-        } else {
-          return document;
+    const output: (ArangoNewOldResult<Document<T>> | DocumentOperationFailure)[] = [];
+    for (let index = 0; index < results.length; index++) {
+      const document = results[index];
+      if (!isDocumentOperationFailure(document)) {
+        if (replaceAllOptions?.emitEvents) {
+          context!.new = document.new;
+          context!.old = document.old;
+          context!.info.current = index;
+          await this.eventListeners
+            ?.get(EventListenerType.AFTER_REPLACE)
+            ?.call(document, context!);
         }
-      }),
-    );
+        output.push(new ArangoNewOldResult(document.new!, document.old!));
+      } else {
+        output.push(document);
+      }
+    }
+    return output;
   }
 
   async upsert<R = any>(
@@ -1103,19 +1096,20 @@ export class ArangoRepository<T extends ArangoDocument> {
       });
     }
 
-    return results.map((document, index) => {
+    for (let index = 0; index < results.length; index++) {
+      const document = results[index];
       if (!isDocumentOperationFailure(document)) {
         if (removeAllOptions?.emitEvents) {
-          context.old = document;
-          context.info.current = index;
-          this.eventListeners
+          context!.old = document;
+          context!.info.current = index;
+          await this.eventListeners
             ?.get(EventListenerType.AFTER_REMOVE)
-            ?.call(document, context);
+            ?.call(document, context!);
         }
       }
+    }
 
-      return document;
-    });
+    return results;
   }
 
   async truncate(truncateOptions: TruncateOptions = {}): Promise<void> {
