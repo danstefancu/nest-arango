@@ -8,6 +8,6 @@
     "testEnvironment": "node",
     "testRegex": ".tests.ts$",
     "transform": {
-        "^.+\\.(t|j)s$": "ts-jest"
+        "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "./tsconfig.json" }]
     }
 }
