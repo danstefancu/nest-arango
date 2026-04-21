@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { aql } from 'arangojs';
 import { Document } from 'arangojs/documents';
 import {
+  ArangoEdgeRepository,
   ArangoManager,
   ArangoNewOldResult,
   ArangoRepository,
   InjectManager,
   InjectRepository,
+  SortDirection,
 } from '../../../src';
+import { KnowsEntity } from '../entities/knows.entity';
 import { PersonEntity } from '../entities/person.entity';
 import { CollectionName } from '../enums/collection-name.enum';
 
@@ -17,10 +21,13 @@ export class TestService {
     private readonly databaseManager: ArangoManager,
     @InjectRepository(PersonEntity)
     private readonly personRepository: ArangoRepository<PersonEntity>,
+    @InjectRepository(KnowsEntity)
+    private readonly knowsRepository: ArangoEdgeRepository<KnowsEntity>,
   ) {}
 
   async truncateCollections() {
     await this.personRepository.truncate();
+    await this.knowsRepository.truncate();
   }
 
   async saveAll(options: { emitEvents: boolean }) {
@@ -437,5 +444,157 @@ export class TestService {
 
     const result = await this.personRepository.findOne('afterRemove0');
     return result;
+  }
+
+  async saveAllDecorator() {
+    await this.personRepository.saveAll(
+      Array.from(new Array(3), (_, index) => ({ name: `test${index}` })),
+      { emitEvents: true },
+    );
+
+    return await this.personRepository.findMany([
+      'beforeSave0',
+      'afterSave0',
+      'beforeSave1',
+      'afterSave1',
+      'beforeSave2',
+      'afterSave2',
+    ]);
+  }
+
+  async updateAllDecorator() {
+    const entries = await this.personRepository.saveAll(
+      Array.from(new Array(3), (_, index) => ({ name: `test${index}` })),
+      { emitEvents: false, returnFailures: false },
+    );
+
+    await this.personRepository.updateAll(
+      entries.map((entry) => ({ _key: entry._key, name: 'Updated' })),
+      { emitEvents: true, returnFailures: false },
+    );
+
+    return await this.personRepository.findMany([
+      'beforeUpdate0',
+      'afterUpdate0',
+      'beforeUpdate1',
+      'afterUpdate1',
+      'beforeUpdate2',
+      'afterUpdate2',
+    ]);
+  }
+
+  async replaceAllDecorator() {
+    const entries = await this.personRepository.saveAll(
+      Array.from(new Array(3), (_, index) => ({ name: `test${index}` })),
+      { emitEvents: false, returnFailures: false },
+    );
+
+    await this.personRepository.replaceAll(
+      entries.map((entry) => ({ ...entry, name: 'Replaced' })),
+      { emitEvents: true, returnFailures: false },
+    );
+
+    return await this.personRepository.findMany([
+      'beforeReplace0',
+      'afterReplace0',
+      'beforeReplace1',
+      'afterReplace1',
+      'beforeReplace2',
+      'afterReplace2',
+    ]);
+  }
+
+  async removeAllDecorator() {
+    const entries = await this.personRepository.saveAll(
+      Array.from(new Array(3), (_, index) => ({ name: `test${index}` })),
+      { emitEvents: false, returnFailures: false },
+    );
+
+    await this.personRepository.removeAll(
+      entries.map((entry) => entry._key),
+      { emitEvents: true },
+    );
+
+    return await this.personRepository.findMany([
+      'afterRemove0',
+      'afterRemove1',
+      'afterRemove2',
+    ]);
+  }
+
+  async findAllWithSort() {
+    await this.personRepository.saveAll(
+      [{ name: 'Charlie' }, { name: 'Alice' }, { name: 'Bob' }],
+      { emitEvents: false },
+    );
+
+    return await this.personRepository.findAll({
+      sort: { name: SortDirection.ASC },
+    });
+  }
+
+  async query() {
+    await this.personRepository.saveAll(
+      [{ name: 'QueryTest1' }, { name: 'QueryTest2' }],
+      { emitEvents: false },
+    );
+
+    const cursor = await this.databaseManager.query<PersonEntity>(
+      aql`FOR d IN People FILTER STARTS_WITH(d.name, "QueryTest") SORT d.name ASC RETURN d`,
+    );
+
+    return await cursor.all();
+  }
+
+  async transactionCommit() {
+    const trx = await this.databaseManager.beginTransaction({
+      write: [CollectionName.People],
+    });
+
+    const saved = await this.personRepository.save(
+      { name: 'TransactionTest' },
+      { emitEvents: false, transaction: trx },
+    );
+
+    await trx.commit();
+
+    return await this.personRepository.findOne(saved!._key);
+  }
+
+  async transactionAbort() {
+    const trx = await this.databaseManager.beginTransaction({
+      write: [CollectionName.People],
+    });
+
+    const saved = await this.personRepository.save(
+      { name: 'RolledBackTest' },
+      { emitEvents: false, transaction: trx },
+    );
+
+    await trx.abort();
+
+    return await this.personRepository.findOne(saved!._key);
+  }
+
+  async edgeOperations() {
+    const alice = await this.personRepository.save(
+      { name: 'Alice' },
+      { emitEvents: false },
+    );
+    const bob = await this.personRepository.save(
+      { name: 'Bob' },
+      { emitEvents: false },
+    );
+
+    await this.knowsRepository.save(
+      { _from: alice!._id, _to: bob!._id },
+      { emitEvents: false },
+    );
+
+    const allEdges = await this.knowsRepository.edges(alice!._id);
+    const inEdges = await this.knowsRepository.inEdges(bob!._id);
+    const outEdges = await this.knowsRepository.outEdges(alice!._id);
+
+    return { allEdges, inEdges, outEdges };
   }
 }

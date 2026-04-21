@@ -8,7 +8,8 @@ export class ArangoEdgeRepository<
   T extends ArangoDocumentEdge,
 > extends ArangoRepository<T> {
   async edges(selector: DocumentSelector, options?: DocumentEdgesOptions) {
-    const result = await this.collection.edges(selector, options);
+    // arangojs collection.edges() omits direction; ArangoDB requires direction='any'
+    const result = await (this.collection as any)._edges(selector, options ?? {}, 'any');
     return result.edges;
   }
 

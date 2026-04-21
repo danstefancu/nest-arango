@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { execSync } from 'child_process';
 import path from 'path';
 import { ArangoModule } from '../src';
+import { KnowsEntity } from './src/entities/knows.entity';
 import { PersonEntity } from './src/entities/person.entity';
 import { TestService } from './src/services/test.service';
 import {
@@ -60,7 +61,7 @@ describe('nest-arango: core tests', () => {
           }),
           inject: [ConfigService],
         }),
-        ArangoModule.forFeature([PersonEntity]),
+        ArangoModule.forFeature([PersonEntity, KnowsEntity]),
       ],
       providers: [TestService],
     }).compile();
@@ -446,6 +447,127 @@ describe('nest-arango: core tests', () => {
 
       expect(result).toBeDefined();
       expect(result).toHaveProperty('name', 'afterRemove0');
+    });
+  });
+
+  describe('saveAll emits', () => {
+    it('should invoke @BeforeSave and @AfterSave for each item in bulk', async () => {
+      const result = await testService.saveAllDecorator();
+
+      expect(result).toHaveLength(6);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'beforeSave0' }),
+          expect.objectContaining({ name: 'afterSave0' }),
+          expect.objectContaining({ name: 'beforeSave1' }),
+          expect.objectContaining({ name: 'afterSave1' }),
+          expect.objectContaining({ name: 'beforeSave2' }),
+          expect.objectContaining({ name: 'afterSave2' }),
+        ]),
+      );
+    });
+  });
+
+  describe('updateAll emits', () => {
+    it('should invoke @BeforeUpdate and @AfterUpdate for each item in bulk', async () => {
+      const result = await testService.updateAllDecorator();
+
+      expect(result).toHaveLength(6);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'beforeUpdate0' }),
+          expect.objectContaining({ name: 'afterUpdate0' }),
+          expect.objectContaining({ name: 'beforeUpdate1' }),
+          expect.objectContaining({ name: 'afterUpdate1' }),
+          expect.objectContaining({ name: 'beforeUpdate2' }),
+          expect.objectContaining({ name: 'afterUpdate2' }),
+        ]),
+      );
+    });
+  });
+
+  describe('replaceAll emits', () => {
+    it('should invoke @BeforeReplace and @AfterReplace for each item in bulk', async () => {
+      const result = await testService.replaceAllDecorator();
+
+      expect(result).toHaveLength(6);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'beforeReplace0' }),
+          expect.objectContaining({ name: 'afterReplace0' }),
+          expect.objectContaining({ name: 'beforeReplace1' }),
+          expect.objectContaining({ name: 'afterReplace1' }),
+          expect.objectContaining({ name: 'beforeReplace2' }),
+          expect.objectContaining({ name: 'afterReplace2' }),
+        ]),
+      );
+    });
+  });
+
+  describe('removeAll emits', () => {
+    it('should invoke @AfterRemove for each item in bulk', async () => {
+      const result = await testService.removeAllDecorator();
+
+      expect(result).toHaveLength(3);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'afterRemove0' }),
+          expect.objectContaining({ name: 'afterRemove1' }),
+          expect.objectContaining({ name: 'afterRemove2' }),
+        ]),
+      );
+    });
+  });
+
+  describe('findAll with sort', () => {
+    it('should return entries sorted by name ASC', async () => {
+      const result = await testService.findAllWithSort();
+
+      expect(result).toBeDefined();
+      expect(result.results).toHaveLength(3);
+      expect(result.results[0]).toHaveProperty('name', 'Alice');
+      expect(result.results[1]).toHaveProperty('name', 'Bob');
+      expect(result.results[2]).toHaveProperty('name', 'Charlie');
+    });
+  });
+
+  describe('ArangoManager.query', () => {
+    it('should execute raw AQL and return results', async () => {
+      const result = await testService.query();
+
+      expect(result).toBeDefined();
+      expect(result).toHaveLength(2);
+      expect(result[0]).toHaveProperty('name', 'QueryTest1');
+      expect(result[1]).toHaveProperty('name', 'QueryTest2');
+    });
+  });
+
+  describe('transaction commit', () => {
+    it('should persist document after commit', async () => {
+      const result = await testService.transactionCommit();
+
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty('name', 'TransactionTest');
+    });
+  });
+
+  describe('transaction abort', () => {
+    it('should not persist document after abort', async () => {
+      const result = await testService.transactionAbort();
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('edge repository', () => {
+    it('should return edges, inEdges, and outEdges correctly', async () => {
+      const result = await testService.edgeOperations();
+
+      expect(result.allEdges).toHaveLength(1);
+      expect(result.inEdges).toHaveLength(1);
+      expect(result.outEdges).toHaveLength(1);
+      expect(result.allEdges[0]._from).toContain('People/');
+      expect(result.allEdges[0]._to).toContain('People/');
     });
   });
 });
